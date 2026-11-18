@@ -108,9 +108,13 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
 .settings { background: var(--fill); border-radius: 14px; padding: 6px 16px; display: flex; flex-direction: column; }
 .set-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; font-size: 15px; }
 .set-row + .set-row { border-top: 1px solid var(--line); }
-.set-row > span:first-child { flex: none; width: 5.5em; }
+.set-row > span:first-child { flex: none; min-width: 5.5em; white-space: nowrap; }
 .set-row input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent); }
 .set-row .num { width: 3.5em; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.lvl { margin-left: auto; display: inline-flex; background: var(--bg); border-radius: 9px; padding: 2px; flex-wrap: wrap; }
+.lvl button { appearance: none; border: 0; background: none; color: var(--fg); font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 7px; cursor: pointer; }
+.lvl button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+.lvl-note { color: var(--muted); font-size: 12px; margin: -4px 0 6px; }
 .switch { appearance: none; margin-left: auto; width: 51px; height: 31px; border-radius: 31px; background: var(--line); position: relative; cursor: pointer; transition: background .2s; flex: none; }
 .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,.2); transition: transform .2s; }
 .switch:checked { background: var(--ok); }
@@ -171,6 +175,12 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
       <div class="center"><button class="pill" id="pRate" aria-label="再生速度">1×</button><button class="pill" id="pSetBtn" aria-expanded="false" aria-controls="pSet">設定</button></div>
       <div class="settings" id="pSet" hidden>
         <label class="set-row"><span>穴の割合</span><input type="range" id="sPct" min="5" max="100" step="5" value="15"><span class="num" id="sPctVal">15%</span></label>
+        <div class="set-row"><span>単語のレベル</span>
+          <div class="lvl" role="group" aria-label="単語のレベル">
+            <button data-lvl="0" aria-pressed="false">基礎</button><button data-lvl="1" aria-pressed="false">中級</button><button data-lvl="2" aria-pressed="false">上級</button><button data-lvl="3" aria-pressed="false">最上級</button>
+          </div>
+        </div>
+        <p class="lvl-note" id="lvlNote"></p>
         <label class="set-row"><span>日本語訳</span><input type="checkbox" class="switch" id="sJa"></label>
       </div>
       <div class="stack">
@@ -223,7 +233,7 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
     </div>
   </section>
 </div>
-<p class="ver">v10</p>
+<p class="ver">v11</p>
 <div class="scrim" id="scrim" hidden></div>
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="shTerm" hidden>
   <div class="sheet-in">
@@ -237,14 +247,14 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
 </div>
 <div class="toast" id="toast" role="status"></div>
 
-<script src="qrcode.js?v=10"></script>
-<script src="words.js?v=10"></script>
-<script src="idioms.js?v=10"></script>
+<script src="qrcode.js?v=11"></script>
+<script src="words.js?v=11"></script>
+<script src="idioms.js?v=11"></script>
 <script>
 (function () {
   'use strict';
   // reload once when a newer version is published, so a cached page never lingers
-  var APP_V = 10;
+  var APP_V = 11;
   try {
     fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
       var asked = +(new URLSearchParams(location.search).get('v') || 0);
@@ -452,10 +462,18 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
   $('goCreate').addEventListener('click', function () { show('create'); });
 
   // ---------- settings ----------
-  var settings = { pct: 15, ja: false };
+  var settings = { pct: 15, ja: false, level: 3 };
+  var LEVEL_NOTE = ['中学〜高校基礎レベルのよく使う単語（英検3〜準2級くらい）', '高校〜大学入試レベルの単語（英検2級くらい）', 'イディオムと、やや難しい単語（英検準1級くらい）', 'イディオムと、かなり難しい単語（英検1級くらい）'];
+  function renderLevel() {
+    document.querySelectorAll('.lvl button').forEach(function (b) { b.setAttribute('aria-pressed', String(+b.dataset.lvl === settings.level)); });
+    $('lvlNote').textContent = LEVEL_NOTE[settings.level];
+  }
   try { Object.assign(settings, JSON.parse(localStorage.getItem('listening-cloze-settings') || '{}')); } catch (e) {}
   function saveSettings() { try { localStorage.setItem('listening-cloze-settings', JSON.stringify(settings)); } catch (e) {} }
-  $('sPct').value = settings.pct; $('sPctVal').textContent = settings.pct + '%'; $('sJa').checked = !!settings.ja;
+  $('sPct').value = settings.pct; $('sPctVal').textContent = settings.pct + '%'; $('sJa').checked = !!settings.ja; renderLevel();
+  document.querySelectorAll('.lvl button').forEach(function (b) {
+    b.addEventListener('click', function () { settings.level = +b.dataset.lvl; renderLevel(); saveSettings(); if (list.length) renderPractice(); });
+  });
   $('pSetBtn').addEventListener('click', function () { var o = $('pSet').hidden; $('pSet').hidden = !o; this.setAttribute('aria-expanded', String(o)); });
   $('sPct').addEventListener('input', function () { settings.pct = +this.value; $('sPctVal').textContent = settings.pct + '%'; });
   $('sPct').addEventListener('change', function () { saveSettings(); if (list.length) renderPractice(); });
@@ -498,7 +516,7 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
       for (var i = 0; i + ph.length <= ns.length; i++) {
         var ok = true;
         for (var k = 0; k < ph.length; k++) if (used[i + k] || !wordMatch(ns[i + k], ph[k])) { ok = false; break; }
-        if (ok) { var idx = []; for (k = 0; k < ph.length; k++) { idx.push(i + k); used[i + k] = 1; } units.push({ idx: idx, score: 1e6 + ph.length }); }
+        if (ok) { var idx = []; for (k = 0; k < ph.length; k++) { idx.push(i + k); used[i + k] = 1; } units.push({ idx: idx, band: 2.5, score: 1e6 + ph.length }); }
       }
     });
     toks.forEach(function (t, i) {
@@ -507,9 +525,13 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
       var sentenceStart = i === 0 || /[.?!:]["')]?$/.test(toks[i - 1]);
       var name = /^[A-Z]/.test(core) && !sentenceStart, num = /\d/.test(n);
       var r = n.indexOf('-') > 0 ? Math.max.apply(null, n.split('-').map(rankOf)) : rankOf(n);
-      units.push({ idx: [i], score: (name || num) ? -1 : r + n.length / 100 });
+      // word level by frequency rank: 0 basic, 1 intermediate, 2 advanced, 3 very advanced
+      var band = r < 1200 ? 0 : r < 3000 ? 1 : r < 5000 ? 2 : 3;
+      units.push({ idx: [i], band: (name || num) ? 99 : band, score: r + n.length / 100 });
     });
-    units.sort(function (a, b) { return b.score - a.score; });
+    var L = settings.level == null ? 3 : settings.level;
+    function dist(u) { if (u.band === 99) return 99; if (u.band === 2.5) return L >= 2 ? 0 : 2.5 - L; return Math.abs(u.band - L); }
+    units.sort(function (a, b) { return (dist(a) - dist(b)) || (b.score - a.score); });
     var target = Math.max(1, Math.round(toks.length * pct / 100)), out = [];
     for (var u = 0; u < units.length && out.length < target; u++) out = out.concat(units[u].idx);
     return out.sort(function (a, b) { return a - b; });
