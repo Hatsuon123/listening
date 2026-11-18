@@ -183,15 +183,23 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
     </div>
   </section>
 </div>
-<p class="ver">v7</p>
+<p class="ver">v8</p>
 <div class="toast" id="toast" role="status"></div>
 
-<script src="qrcode.js"></script>
-<script src="words.js"></script>
-<script src="idioms.js"></script>
+<script src="qrcode.js?v=8"></script>
+<script src="words.js?v=8"></script>
+<script src="idioms.js?v=8"></script>
 <script>
 (function () {
   'use strict';
+  // reload once when a newer version is published, so a cached page never lingers
+  var APP_V = 8;
+  try {
+    fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+      var asked = +(new URLSearchParams(location.search).get('v') || 0);
+      if (j && j.v > APP_V && asked < j.v) location.replace(location.pathname + '?v=' + j.v + location.hash);
+    }).catch(function () {});
+  } catch (e) {}
   var KEY = 'listening-cloze-v1', POSKEY = 'listening-cloze-pos';
   var $ = function (id) { return document.getElementById(id); };
 
