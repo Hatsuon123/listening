@@ -214,10 +214,13 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
     var p = ts.replace(',', '.').split(':').map(Number);
     return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p[0] * 60 + p[1];
   }
-  var RE_TS = /^(\d{1,2}:)?\d{1,2}:\d{2}$/;
-  var RE_TS_TEXT = /^((?:\d{1,2}:)?\d{1,2}:\d{2})\s+(.+)$/;
+  // timestamp at line start; YouTube's copy may glue a spoken-length label ("8 秒", "1 分 4 秒", "8 seconds") and the text right after it
+  var RE_TS_HEAD = /^((?:\d{1,2}:)?\d{1,2}:\d{2})(?![\d:]*:)(.*)$/;
   var RE_CUE = /^((?:\d{1,2}:)?\d{1,2}:\d{2}[.,]\d{1,3})\s*-->\s*((?:\d{1,2}:)?\d{1,2}:\d{2}[.,]\d{1,3})/;
-  var RE_LABEL = /^(\d+\s*(hours?|minutes?|seconds?)[,\s]*)+$|^(\d+\s*(時間|分|秒)\s*)+$/i;
+  var RE_LABEL_JA = /^\s*(?:\d+\s*時間\s*)?(?:\d+\s*分\s*)?(?:\d+\s*秒)?/;
+  var RE_LABEL_EN = /^\s*(?:\d+\s*(?:hours?|minutes?|seconds?),?\s*)+/i;
+  var RE_LABEL_ONLY = /^(\d+\s*(hours?|minutes?|seconds?)[,\s]*)+$|^(\d+\s*(時間|分|秒)\s*)+$/i;
+  var RE_SKIP = /^(チャプター|chapter)\s*\d+|^(動画の時間と同期|sync to video time)$|^(文字起こし|transcript)$/i;
   function cleanText(t) {
     return t.replace(/<[^>]+>/g, '').replace(/\[[^\]]*\]|\([^)]*(music|applause|laugh)[^)]*\)/gi, '').replace(/>>/g, '').replace(/\s+/g, ' ').trim();
   }
@@ -225,12 +228,17 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
     var segs = [], cur = null;
     raw.split(/\r?\n/).forEach(function (line) {
       line = line.trim();
-      if (!line || line === 'WEBVTT' || /^\d+$/.test(line) || RE_LABEL.test(line)) return;
+      if (!line || line === 'WEBVTT' || /^\d+$/.test(line) || RE_LABEL_ONLY.test(line) || RE_SKIP.test(line)) return;
       var m;
       if ((m = line.match(RE_CUE))) { cur = { start: toSec(m[1]), end: toSec(m[2]), text: '' }; segs.push(cur); return; }
-      if (RE_TS.test(line)) { cur = { start: toSec(line), text: '' }; segs.push(cur); return; }
-      if ((m = line.match(RE_TS_TEXT))) { cur = { start: toSec(m[1]), text: m[2] }; segs.push(cur); return; }
-      if (cur) cur.text += ' ' + line;
+      if ((m = line.match(RE_TS_HEAD))) {
+        var rest = m[2].replace(RE_LABEL_JA, '');
+        if (rest === m[2]) rest = m[2].replace(RE_LABEL_EN, '');
+        cur = { start: toSec(m[1]), text: rest.trim() }; segs.push(cur); return;
+      }
+      if (!/[A-Za-z]/.test(line)) return;
+      if (!cur) { cur = { start: 0, text: '' }; segs.push(cur); }
+      cur.text += ' ' + line;
     });
     segs.forEach(function (s) { s.text = cleanText(s.text); });
     segs = segs.filter(function (s) { return /[A-Za-z]/.test(s.text); });
@@ -244,20 +252,27 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
     }
     return segs;
   }
-  // merge caption chunks into sentence-sized questions
+  // re-split caption chunks into sentences; each word's time is interpolated inside its chunk
   function groupSegments(segs) {
-    var out = [], g = null;
+    var words = [];
     segs.forEach(function (s) {
-      if (g && tokenize(g.text).length >= 4 && tokenize(g.text + ' ' + s.text).length > 18) { out.push(g); g = null; }
-      if (g && s.start - g.end > 1.5) { out.push(g); g = null; }
-      if (!g) g = { start: s.start, end: s.end, text: s.text };
-      else { g.end = s.end; g.text += ' ' + s.text; }
-      var n = tokenize(g.text).length;
-      var sentenceEnd = /[.?!]["')\]]?$/.test(g.text);
-      if ((sentenceEnd && n >= 4) || n >= 16 || g.end - g.start > 9) { out.push(g); g = null; }
+      var toks = tokenize(s.text), n = toks.length, dur = s.end - s.start;
+      toks.forEach(function (w, k) { words.push({ w: w, t0: s.start + dur * k / n, t1: s.start + dur * (k + 1) / n }); });
     });
-    if (g) out.push(g);
-    return out;
+    var out = [], g = [];
+    function flush() { if (g.length) out.push({ start: g[0].t0, end: g[g.length - 1].t1, text: g.map(function (x) { return x.w; }).join(' ') }); g = []; }
+    words.forEach(function (x, i) {
+      if (g.length && x.t0 - g[g.length - 1].t1 > 1.5 && g.length >= 4) flush();
+      g.push(x);
+      var n = g.length, end = /[.?!]["')\]]?$/.test(x.w), comma = /[,;:]$/.test(x.w);
+      if ((end && n >= 4) || (comma && n >= 16) || n >= 24) flush();
+    });
+    flush();
+    // fold a very short leftover into the previous question
+    return out.filter(function (q, i) {
+      if (i > 0 && tokenize(q.text).length < 3 && q.start - out[i - 1].end < 1) { out[i - 1].text += ' ' + q.text; out[i - 1].end = q.end; return false; }
+      return true;
+    });
   }
   var REDUCED = ['a', 'an', 'the', 'to', 'of', 'and', 'or', 'for', 'at', 'in', 'on', 'it', "it's", 'is', 'was', 'are', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'did', "don't", "didn't", "can't", 'can', 'could', 'would', 'should', 'will', "i'm", "i'll", "i'd", "i've", "you're", "you'll", "that's", "there's", "what's", 'gonna', 'wanna', 'gotta', 'kinda', 'him', 'her', 'them', 'you', 'that', 'like', 'just', 'some', 'if', 'but', 'with', "we're", "they're", "he's", "she's", "won't", "isn't", "wasn't", "let's", 'than', 'out', 'up', 'want', 'going', 'got'];
   function autoBlanks(text) {
@@ -306,10 +321,10 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
     if (!c) return;
     ensureVideo(c.videoId, c.start, function () {
       clip = c; stop();
-      player.setPlaybackRate(rate); player.seekTo(Math.max(0, c.start - 0.2), true); player.playVideo();
+      player.setPlaybackRate(rate); player.seekTo(Math.max(0, c.start - 0.4), true); player.playVideo();
       timer = setInterval(function () {
         var t = player.getCurrentTime ? player.getCurrentTime() : 0;
-        if (t >= clip.end + 0.3 || t < clip.start - 3) { player.pauseVideo(); stop(); }
+        if (t >= clip.end + 0.5 || t < clip.start - 3) { player.pauseVideo(); stop(); }
       }, 40);
     });
   }
