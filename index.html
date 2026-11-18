@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Listening</title>
+<style>
+/* Layout: one narrow centered column. One task per screen, one primary button. */
+:root {
+  --bg: #ffffff;
+  --fill: #f5f5f7;
+  --fg: #1d1d1f;
+  --muted: #86868b;
+  --line: #e5e5ea;
+  --accent: #0071e3;
+  --accent-fg: #ffffff;
+  --ok: #248a3d;
+  --ng: #d70015;
+  --seg-on: #ffffff;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Segoe UI", system-ui, sans-serif;
+  --font-en: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000; --fill: #1c1c1e; --fg: #f5f5f7; --muted: #8e8e93; --line: #2c2c2e;
+    --accent: #2997ff; --accent-fg: #ffffff; --ok: #30d158; --ng: #ff453a; --seg-on: #3a3a3c;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 17px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px)) calc(48px + env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
+}
+.wrap { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+.col { display: flex; flex-direction: column; gap: 24px; }
+
+.seg { align-self: center; display: inline-flex; background: var(--fill); border-radius: 10px; padding: 2px; }
+.seg button { appearance: none; border: 0; background: none; color: var(--fg); font: inherit; font-size: 14px; font-weight: 500; padding: 6px 20px; border-radius: 8px; cursor: pointer; }
+.seg button[aria-selected="true"] { background: var(--seg-on); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
+
+.video { position: relative; width: 100%; max-width: 100%; aspect-ratio: 16 / 9; background: var(--fill); border-radius: 16px; overflow: hidden; }
+.video iframe, #player { position: absolute; inset: 0; width: 100%; height: 100%; }
+.err { color: var(--ng); font-size: 14px; text-align: center; margin: -16px 0 0; }
+
+h2 { font-family: var(--font-en); font-size: 28px; font-weight: 700; letter-spacing: -.01em; margin: 0; text-align: center; text-wrap: balance; }
+.lead { color: var(--muted); text-align: center; margin: -16px 0 0; font-size: 15px; }
+.center { display: flex; justify-content: center; align-items: center; gap: 16px; flex-wrap: wrap; }
+.stack { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+
+.btn { appearance: none; border: 0; font: inherit; font-size: 17px; font-weight: 500; border-radius: 980px; padding: 12px 28px; cursor: pointer; background: var(--accent); color: var(--accent-fg); min-width: 200px; }
+.btn:disabled { opacity: .35; cursor: default; }
+.link { appearance: none; border: 0; background: none; font: inherit; font-size: 15px; color: var(--accent); cursor: pointer; padding: 6px; }
+.link.muted { color: var(--muted); }
+.round { appearance: none; border: 0; width: 64px; height: 64px; border-radius: 50%; background: var(--fill); color: var(--fg); cursor: pointer; display: grid; place-items: center; }
+.round svg { width: 26px; height: 26px; fill: currentColor; }
+.round.sm { width: 44px; height: 44px; background: none; color: var(--muted); }
+.round.sm svg { width: 22px; height: 22px; }
+.pill { appearance: none; border: 0; font: inherit; font-size: 14px; font-weight: 600; background: var(--fill); color: var(--fg); border-radius: 980px; padding: 6px 14px; cursor: pointer; font-variant-numeric: tabular-nums; min-width: 60px; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+input[type="text"], textarea { font: inherit; font-size: 17px; color: var(--fg); background: var(--fill); border: 0; border-radius: 12px; padding: 14px 16px; width: 100%; }
+textarea { font-size: 15px; min-height: 180px; resize: vertical; }
+::placeholder { color: var(--muted); }
+
+.how { background: var(--fill); border-radius: 12px; padding: 14px 16px 14px 36px; margin: 0; font-size: 15px; color: var(--fg); }
+.how li + li { margin-top: 4px; }
+.how small { color: var(--muted); }
+.ready { text-align: center; color: var(--muted); font-size: 15px; margin: -12px 0 0; min-height: 1.5em; }
+
+.count { text-align: center; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.bar { height: 3px; background: var(--fill); border-radius: 2px; overflow: hidden; margin-top: -20px; }
+.bar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+.sentence { font-family: var(--font-en); font-size: 26px; line-height: 2; text-align: center; word-break: break-word; letter-spacing: -.005em; }
+.sentence input { font: inherit; font-size: 24px; color: var(--fg); background: var(--fill); border: 0; border-bottom: 2px solid var(--line); border-radius: 8px 8px 0 0; padding: 0 4px; margin: 0 1px; text-align: center; display: inline-block; }
+.sentence input:focus { border-bottom-color: var(--accent); outline: none; }
+.sentence input.ok { color: var(--ok); border-bottom-color: var(--ok); background: none; font-weight: 600; }
+.sentence input.ng { color: var(--ng); border-bottom-color: var(--ng); }
+.answer { font-family: var(--font-en); text-align: center; color: var(--muted); font-size: 17px; }
+.answer b { color: var(--fg); font-weight: 600; }
+.controls { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+.controls > :first-child { justify-self: start; }
+.controls > :last-child { justify-self: end; }
+
+.rows { display: flex; flex-direction: column; }
+.r { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.r img { width: 96px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; background: var(--fill); flex: none; }
+.r .txt { flex: 1; min-width: 0; cursor: pointer; display: flex; flex-direction: column; }
+.r .t1 { font-family: var(--font-en); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.r .t2 { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.r .del { appearance: none; border: 0; background: none; font: inherit; font-size: 14px; color: var(--muted); cursor: pointer; padding: 4px 6px; }
+.r .del.confirm { color: var(--ng); }
+.empty { text-align: center; color: var(--muted); }
+
+.toast { position: fixed; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 20px; border-radius: 980px; font-size: 15px; opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap; }
+.toast.show { opacity: 1; }
+@media (max-width: 420px) { .sentence { font-size: 22px; } .sentence input { font-size: 21px; } h2 { font-size: 24px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="seg" role="tablist">
+    <button role="tab" id="tab-practice" data-view="practice" aria-selected="true">練習</button>
+    <button role="tab" id="tab-create" data-view="create" aria-selected="false">追加</button>
+    <button role="tab" id="tab-list" data-view="list" aria-selected="false">一覧</button>
+  </nav>
+
+  <div class="video" id="videoBox" hidden><div id="player"></div></div>
+  <p class="err" id="playerErr" hidden></p>
+
+  <!-- 練習 -->
+  <section id="view-practice" class="col">
+    <div id="pEmpty" class="col" hidden>
+      <h2>動画を追加しましょう</h2>
+      <div class="center"><button class="btn" id="goCreate">追加</button></div>
+    </div>
+    <div id="pBody" class="col" hidden>
+      <div class="count" id="pCount"></div>
+      <div class="bar"><i id="pBar"></i></div>
+      <div class="sentence" id="sentence"></div>
+      <div class="controls">
+        <button class="round sm" id="pPrev" aria-label="前の問題"><svg viewBox="0 0 24 24"><path d="M15.4 4.6 8 12l7.4 7.4 1.4-1.4-6-6 6-6z"/></svg></button>
+        <button class="round" id="pPlay" aria-label="もう一度聞く"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+        <button class="round sm" id="pNext" aria-label="次の問題"><svg viewBox="0 0 24 24"><path d="M8.6 4.6 16 12l-7.4 7.4-1.4-1.4 6-6-6-6z"/></svg></button>
+      </div>
+      <div class="center"><button class="pill" id="pRate" aria-label="再生速度">1×</button></div>
+      <div class="stack">
+        <button class="btn" id="pCheck">答え合わせ</button>
+        <button class="link muted" id="pReveal">答えを見る</button>
+      </div>
+      <div class="answer" id="pAnswer" hidden></div>
+    </div>
+  </section>
+
+  <!-- 追加 -->
+  <section id="view-create" class="col" hidden>
+    <div id="s1" class="col">
+      <h2>YouTubeのURL</h2>
+      <input type="text" id="cUrl" placeholder="youtube.com/watch?v=…" autocomplete="off" aria-label="YouTubeのURL">
+      <div class="center"><button class="btn" id="s1Next">次へ</button></div>
+    </div>
+    <div id="s2" class="col" hidden>
+      <h2>文字起こしを貼り付け</h2>
+      <textarea id="cScript" placeholder="0:00&#10;Hi, I'm Vanessa from SpeakEnglishWithVanessa.com.&#10;0:04&#10;…" aria-label="文字起こし"></textarea>
+      <p class="ready" id="cReady"></p>
+      <div class="stack">
+        <button class="btn" id="cMake" disabled>問題を作る</button>
+        <button class="link muted" id="howToggle">文字起こしの出し方</button>
+      </div>
+      <ol class="how" id="how" hidden>
+        <li>パソコンでYouTubeの動画を開く</li>
+        <li>説明欄のいちばん下の「文字起こしを表示」を押す</li>
+        <li>右に出た文字を最初から最後までドラッグで選んでコピー</li>
+        <li><small>時間（0:00 など）ごとコピーしてOKです</small></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 一覧 -->
+  <section id="view-list" class="col" hidden>
+    <div class="rows" id="lList"></div>
+  </section>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function () {
+  'use strict';
+  var KEY = 'listening-cloze-v1', POSKEY = 'listening-cloze-pos';
+  var $ = function (id) { return document.getElementById(id); };
+
+  var items = [], posMap = {};
+  try { items = JSON.parse(localStorage.getItem(KEY) || '[]') || []; } catch (e) { items = []; }
+  try { posMap = JSON.parse(localStorage.getItem(POSKEY) || '{}') || {}; } catch (e) { posMap = {}; }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(items)); } catch (e) { toast('保存できませんでした'); } }
+  function savePos() { try { localStorage.setItem(POSKEY, JSON.stringify(posMap)); } catch (e) {} }
+
+  function toast(m) { var t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(function () { t.classList.remove('show'); }, 1800); }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function tokenize(t) { return t.trim().split(/\s+/).filter(Boolean); }
+  function parts(tok) { var m = tok.match(/^([^A-Za-z0-9]*)(.*?)([^A-Za-z0-9]*)$/); return (!m || !m[2]) ? { pre: '', core: tok, post: '' } : { pre: m[1], core: m[2], post: m[3] }; }
+  function norm(s) { return s.toLowerCase().replace(/[‘’ʼ]/g, "'").replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, ''); }
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function parseId(url) {
+    url = (url || '').trim();
+    if (/^[A-Za-z0-9_-]{11}$/.test(url)) return url;
+    var m = url.match(/(?:youtu\.be\/|[?&]v=|\/shorts\/|\/embed\/|\/live\/)([A-Za-z0-9_-]{11})/);
+    return m ? m[1] : null;
+  }
+
+  // ---------- transcript parsing ----------
+  function toSec(ts) {
+    var p = ts.replace(',', '.').split(':').map(Number);
+    return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p[0] * 60 + p[1];
+  }
+  var RE_TS = /^(\d{1,2}:)?\d{1,2}:\d{2}$/;
+  var RE_TS_TEXT = /^((?:\d{1,2}:)?\d{1,2}:\d{2})\s+(.+)$/;
+  var RE_CUE = /^((?:\d{1,2}:)?\d{1,2}:\d{2}[.,]\d{1,3})\s*-->\s*((?:\d{1,2}:)?\d{1,2}:\d{2}[.,]\d{1,3})/;
+  var RE_LABEL = /^(\d+\s*(hours?|minutes?|seconds?)[,\s]*)+$|^(\d+\s*(時間|分|秒)\s*)+$/i;
+  function cleanText(t) {
+    return t.replace(/<[^>]+>/g, '').replace(/\[[^\]]*\]|\([^)]*(music|applause|laugh)[^)]*\)/gi, '').replace(/>>/g, '').replace(/\s+/g, ' ').trim();
+  }
+  function parseTranscript(raw) {
+    var segs = [], cur = null;
+    raw.split(/\r?\n/).forEach(function (line) {
+      line = line.trim();
+      if (!line || line === 'WEBVTT' || /^\d+$/.test(line) || RE_LABEL.test(line)) return;
+      var m;
+      if ((m = line.match(RE_CUE))) { cur = { start: toSec(m[1]), end: toSec(m[2]), text: '' }; segs.push(cur); return; }
+      if (RE_TS.test(line)) { cur = { start: toSec(line), text: '' }; segs.push(cur); return; }
+      if ((m = line.match(RE_TS_TEXT))) { cur = { start: toSec(m[1]), text: m[2] }; segs.push(cur); return; }
+      if (cur) cur.text += ' ' + line;
+    });
+    segs.forEach(function (s) { s.text = cleanText(s.text); });
+    segs = segs.filter(function (s) { return /[A-Za-z]/.test(s.text); });
+    segs.sort(function (a, b) { return a.start - b.start; });
+    for (var i = 0; i < segs.length; i++) {
+      if (segs[i].end == null) {
+        // cap at a natural speaking length so pauses and gaps aren't played
+        var guess = segs[i].start + Math.max(2, tokenize(segs[i].text).length * 0.45 + 1);
+        segs[i].end = i + 1 < segs.length ? Math.min(segs[i + 1].start, guess) : guess;
+      }
+    }
+    return segs;
+  }
+  // merge caption chunks into sentence-sized questions
+  function groupSegments(segs) {
+    var out = [], g = null;
+    segs.forEach(function (s) {
+      if (g && tokenize(g.text).length >= 4 && tokenize(g.text + ' ' + s.text).length > 18) { out.push(g); g = null; }
+      if (g && s.start - g.end > 1.5) { out.push(g); g = null; }
+      if (!g) g = { start: s.start, end: s.end, text: s.text };
+      else { g.end = s.end; g.text += ' ' + s.text; }
+      var n = tokenize(g.text).length;
+      var sentenceEnd = /[.?!]["')\]]?$/.test(g.text);
+      if ((sentenceEnd && n >= 4) || n >= 16 || g.end - g.start > 9) { out.push(g); g = null; }
+    });
+    if (g) out.push(g);
+    return out;
+  }
+  var REDUCED = ['a', 'an', 'the', 'to', 'of', 'and', 'or', 'for', 'at', 'in', 'on', 'it', "it's", 'is', 'was', 'are', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'did', "don't", "didn't", "can't", 'can', 'could', 'would', 'should', 'will', "i'm", "i'll", "i'd", "i've", "you're", "you'll", "that's", "there's", "what's", 'gonna', 'wanna', 'gotta', 'kinda', 'him', 'her', 'them', 'you', 'that', 'like', 'just', 'some', 'if', 'but', 'with', "we're", "they're", "he's", "she's", "won't", "isn't", "wasn't", "let's", 'than', 'out', 'up', 'want', 'going', 'got'];
+  function autoBlanks(text) {
+    var toks = tokenize(text), cand = [];
+    toks.forEach(function (t, i) { if (REDUCED.indexOf(norm(t)) >= 0) cand.push(i); });
+    var max = Math.min(3, Math.max(1, Math.round(toks.length / 5)));
+    if (!cand.length) {
+      var best = -1, len = 0;
+      toks.forEach(function (t, i) { var l = norm(t).length; if (l > len) { len = l; best = i; } });
+      return best >= 0 ? [best] : [];
+    }
+    if (cand.length <= max) return cand;
+    // spread picks evenly across the sentence
+    var pick = [];
+    for (var k = 0; k < max; k++) pick.push(cand[Math.floor((k + 0.5) * cand.length / max)]);
+    return pick.filter(function (v, i, a) { return a.indexOf(v) === i; });
+  }
+
+  // ---------- player ----------
+  var player = null, ready = false, curVid = null, pending = null, clip = null, rate = 1, timer = null;
+  var tag = document.createElement('script'); tag.src = 'https://www.youtube.com/iframe_api';
+  tag.onerror = function () { perr('動画を読み込めません。ネット接続を確認してください'); };
+  document.head.appendChild(tag);
+  function perr(m) { $('playerErr').textContent = m || ''; $('playerErr').hidden = !m; }
+  function ensureVideo(id, start, cb) {
+    perr(''); $('videoBox').hidden = false;
+    if (player && ready && curVid === id) { cb && cb(); return; }
+    if (!window.YT || !YT.Player) { setTimeout(function () { ensureVideo(id, start, cb); }, 200); return; }
+    curVid = id; pending = cb;
+    if (player) { if (ready) player.cueVideoById({ videoId: id, startSeconds: start || 0 }); return; }
+    var pv = { playsinline: 1, rel: 0, modestbranding: 1, cc_load_policy: 0, start: Math.floor(start || 0) };
+    if (location.protocol.indexOf('http') === 0) pv.origin = location.origin;
+    player = new YT.Player('player', {
+      videoId: id, playerVars: pv,
+      events: {
+        onReady: function () { ready = true; player.setPlaybackRate(rate); var f = pending; pending = null; f && f(); },
+        onStateChange: function (e) { if (e.data === YT.PlayerState.CUED && pending) { var f = pending; pending = null; f(); } },
+        onError: function (e) {
+          perr({ 100: 'この動画は見つかりません', 101: 'この動画は埋め込みが許可されていません', 150: 'この動画は埋め込みが許可されていません', 153: 'ファイルを直接開くと再生できません。URLから開いてください' }[e.data] || '再生できませんでした');
+        }
+      }
+    });
+  }
+  function stop() { if (timer) { clearInterval(timer); timer = null; } }
+  function playClip(c) {
+    if (!c) return;
+    ensureVideo(c.videoId, c.start, function () {
+      clip = c; stop();
+      player.setPlaybackRate(rate); player.seekTo(Math.max(0, c.start - 0.2), true); player.playVideo();
+      timer = setInterval(function () {
+        var t = player.getCurrentTime ? player.getCurrentTime() : 0;
+        if (t >= clip.end + 0.3 || t < clip.start - 3) { player.pauseVideo(); stop(); }
+      }, 40);
+    });
+  }
+
+  // ---------- decks (one per video) ----------
+  var deck = null;
+  try { deck = localStorage.getItem('listening-cloze-deck'); } catch (e) {}
+  function deckItems(v) { return items.filter(function (it) { return it.videoId === v; }).sort(function (a, b) { return a.start - b.start; }); }
+  function decks() {
+    var seen = {}, list = [];
+    items.forEach(function (it) { if (!seen[it.videoId]) { seen[it.videoId] = { videoId: it.videoId, n: 0, created: it.created || 0, title: '' }; list.push(seen[it.videoId]); } seen[it.videoId].n++; if (!seen[it.videoId].title) seen[it.videoId].title = it.text; });
+    return list.sort(function (a, b) { return b.created - a.created; });
+  }
+  function setDeck(v) { deck = v; try { localStorage.setItem('listening-cloze-deck', v); } catch (e) {} }
+
+  // ---------- views ----------
+  var view = 'practice';
+  function show(v) {
+    view = v; stop(); if (player && ready) player.pauseVideo();
+    ['practice', 'create', 'list'].forEach(function (n) { $('view-' + n).hidden = n !== v; $('tab-' + n).setAttribute('aria-selected', String(n === v)); });
+    if (v === 'practice') renderPractice();
+    if (v === 'list') { $('videoBox').hidden = true; perr(''); renderList(); }
+    if (v === 'create') { goStep(1); }
+  }
+  document.querySelectorAll('.seg button').forEach(function (b) { b.addEventListener('click', function () { show(b.dataset.view); }); });
+  $('goCreate').addEventListener('click', function () { show('create'); });
+
+  // ---------- practice ----------
+  var list = [], pos = 0, solved = false, counted = {};
+  function renderPractice() {
+    if (!deck || !deckItems(deck).length) { var ds = decks(); setDeck(ds.length ? ds[0].videoId : null); }
+    list = deck ? deckItems(deck) : [];
+    var has = list.length > 0;
+    $('pEmpty').hidden = has; $('pBody').hidden = !has; $('videoBox').hidden = !has;
+    if (!has) return;
+    pos = Math.min(posMap[deck] || 0, list.length - 1);
+    var it = list[pos], toks = tokenize(it.text), html = '';
+    $('pCount').textContent = (pos + 1) + ' / ' + list.length;
+    $('pBar').style.width = ((pos + 1) / list.length * 100) + '%';
+    toks.forEach(function (tok, i) {
+      if (it.blanks.indexOf(i) >= 0) {
+        var p = parts(tok), w = Math.max(3, p.core.length + 1);
+        html += esc(p.pre) + '<input type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-i="' + i + '" style="width:' + (w * 0.6 + 0.6) + 'em" aria-label="空欄">' + esc(p.post) + ' ';
+      } else html += esc(tok) + ' ';
+    });
+    $('sentence').innerHTML = html;
+    $('pAnswer').hidden = true;
+    setSolved(false);
+    ensureVideo(it.videoId, it.start, null);
+  }
+  function cur() { return list[pos]; }
+  function inputs() { return Array.prototype.slice.call($('sentence').querySelectorAll('input')); }
+  function setSolved(done) { solved = done; $('pCheck').textContent = done ? '次へ' : '答え合わせ'; $('pReveal').hidden = done; }
+  function check() {
+    if (solved) return go(1, true);
+    var it = cur(), toks = tokenize(it.text), all = true;
+    inputs().forEach(function (inp) {
+      var ok = norm(inp.value) === norm(parts(toks[+inp.dataset.i]).core);
+      inp.classList.toggle('ok', ok); inp.classList.toggle('ng', !ok); inp.readOnly = ok;
+      if (!ok) all = false;
+    });
+    if (all) {
+      if (!counted[it.id]) { counted[it.id] = 1; it.correct = (it.correct || 0) + 1; save(); }
+      toast('正解'); setSolved(true); $('pCheck').focus();
+    } else { var f = inputs().find(function (i) { return !i.readOnly; }); f && f.focus(); }
+  }
+  function reveal() {
+    var it = cur(), toks = tokenize(it.text);
+    $('pAnswer').innerHTML = toks.map(function (t, i) { return it.blanks.indexOf(i) >= 0 ? '<b>' + esc(t) + '</b>' : esc(t); }).join(' ');
+    $('pAnswer').hidden = false; setSolved(true);
+  }
+  function go(d, autoplay) {
+    if (!list.length) return;
+    stop(); if (player && ready) player.pauseVideo();
+    posMap[deck] = (pos + d + list.length) % list.length; savePos();
+    renderPractice();
+    if (autoplay) playClip(cur());
+  }
+  $('pCheck').addEventListener('click', check);
+  $('pReveal').addEventListener('click', reveal);
+  $('pPlay').addEventListener('click', function () { playClip(cur()); var f = inputs().find(function (i) { return !i.readOnly; }); f && f.focus({ preventScroll: true }); });
+  $('pPrev').addEventListener('click', function () { go(-1, true); });
+  $('pNext').addEventListener('click', function () { go(1, true); });
+  var RATES = [1, 0.75, 0.5];
+  $('pRate').addEventListener('click', function () {
+    rate = RATES[(RATES.indexOf(rate) + 1) % RATES.length];
+    this.textContent = rate + '×';
+    if (player && ready) player.setPlaybackRate(rate);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (view !== 'practice' || !list.length) return;
+    if (e.key === 'Escape') { e.preventDefault(); playClip(cur()); }
+    else if (e.key === 'Enter' && e.target.closest && (e.target.closest('#sentence') || e.target.id === 'pCheck')) { e.preventDefault(); check(); }
+  });
+
+  // ---------- add ----------
+  var newVid = null, parsed = [];
+  function goStep(n) {
+    $('s1').hidden = n !== 1; $('s2').hidden = n !== 2;
+    $('videoBox').hidden = n === 1; perr('');
+    if (n === 1) { $('cUrl').value = ''; setTimeout(function () { $('cUrl').focus(); }, 0); }
+    if (n === 2) { $('cScript').value = ''; updReady(); $('cScript').focus(); }
+  }
+  function next1() {
+    newVid = parseId($('cUrl').value);
+    if (!newVid) { toast('YouTubeのURLを貼ってください'); return; }
+    ensureVideo(newVid, 0, null); goStep(2);
+  }
+  $('s1Next').addEventListener('click', next1);
+  $('cUrl').addEventListener('keydown', function (e) { if (e.key === 'Enter') next1(); });
+  $('cUrl').addEventListener('paste', function () { setTimeout(function () { if (parseId($('cUrl').value)) next1(); }, 0); });
+  function updReady() {
+    parsed = groupSegments(parseTranscript($('cScript').value));
+    $('cMake').disabled = !parsed.length;
+    $('cReady').textContent = parsed.length ? parsed.length + '問できます' : ($('cScript').value.trim() ? '時間（0:00 など）が見つかりません' : '');
+  }
+  $('cScript').addEventListener('input', updReady);
+  $('howToggle').addEventListener('click', function () { $('how').hidden = !$('how').hidden; });
+  $('cMake').addEventListener('click', function () {
+    var now = Date.now();
+    items = items.filter(function (it) { return it.videoId !== newVid; });
+    parsed.forEach(function (g) {
+      items.push({ id: uid(), videoId: newVid, start: Math.round(g.start * 10) / 10, end: Math.round(g.end * 10) / 10, text: g.text, blanks: autoBlanks(g.text), created: now });
+    });
+    save(); setDeck(newVid); posMap[newVid] = 0; savePos();
+    toast(parsed.length + '問できました');
+    show('practice');
+  });
+
+  // ---------- list ----------
+  var pendingDel = null;
+  function renderList() {
+    var ds = decks();
+    if (!ds.length) { $('lList').innerHTML = '<p class="empty">まだ動画がありません</p>'; return; }
+    $('lList').innerHTML = ds.map(function (d) {
+      var done = deckItems(d.videoId).filter(function (it) { return it.correct; }).length;
+      return '<div class="r"><img src="https://i.ytimg.com/vi/' + esc(d.videoId) + '/mqdefault.jpg" alt="" loading="lazy">' +
+        '<div class="txt" data-v="' + esc(d.videoId) + '" role="button" tabindex="0"><span class="t1">' + esc(d.title) + '</span><span class="t2">' + done + ' / ' + d.n + '問 正解</span></div>' +
+        '<button class="del' + (pendingDel === d.videoId ? ' confirm' : '') + '" data-v="' + esc(d.videoId) + '">' + (pendingDel === d.videoId ? '削除する' : '削除') + '</button></div>';
+    }).join('');
+  }
+  $('lList').addEventListener('click', function (e) {
+    var t = e.target.closest('.txt'), del = e.target.closest('.del');
+    if (t) { setDeck(t.dataset.v); show('practice'); }
+    if (del) {
+      var v = del.dataset.v;
+      if (pendingDel !== v) { pendingDel = v; renderList(); setTimeout(function () { if (pendingDel === v) { pendingDel = null; renderList(); } }, 3000); return; }
+      pendingDel = null; items = items.filter(function (it) { return it.videoId !== v; }); delete posMap[v]; save(); savePos(); renderList();
+    }
+  });
+  $('lList').addEventListener('keydown', function (e) { var t = e.target.closest('.txt'); if (t && e.key === 'Enter') { setDeck(t.dataset.v); show('practice'); } });
+
+  show(items.length ? 'practice' : 'create');
+})();
+</script>
+</body>
+</html>
