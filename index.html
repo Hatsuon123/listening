@@ -104,6 +104,17 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
 .sentence .w, .answer .w { cursor: pointer; border-radius: 4px; }
 .sentence .w:hover, .answer .w:hover { background: var(--fill); }
 .tip { text-align: center; color: var(--muted); font-size: 13px; margin: -16px 0 0; }
+.ja-line { text-align: center; color: var(--muted); font-size: 15px; margin: -12px 0 0; min-height: 1.4em; }
+.settings { background: var(--fill); border-radius: 14px; padding: 6px 16px; display: flex; flex-direction: column; }
+.set-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; font-size: 15px; }
+.set-row + .set-row { border-top: 1px solid var(--line); }
+.set-row > span:first-child { flex: none; width: 5.5em; }
+.set-row input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent); }
+.set-row .num { width: 3.5em; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.switch { appearance: none; margin-left: auto; width: 51px; height: 31px; border-radius: 31px; background: var(--line); position: relative; cursor: pointer; transition: background .2s; flex: none; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,.2); transition: transform .2s; }
+.switch:checked { background: var(--ok); }
+.switch:checked::after { transform: translateX(20px); }
 .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 20; }
 .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; max-height: 78vh; overflow-y: auto; background: var(--bg); border-radius: 18px 18px 0 0; box-shadow: 0 -4px 30px rgba(0,0,0,.2); padding: 20px max(20px, env(safe-area-inset-right, 0px)) calc(28px + env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px)); }
 .sheet-in { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
@@ -151,12 +162,17 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
       <div class="count" id="pCount"></div>
       <div class="bar"><i id="pBar"></i></div>
       <div class="sentence" id="sentence"></div>
+      <p class="ja-line" id="pJa" hidden></p>
       <div class="controls">
         <button class="round sm" id="pPrev" aria-label="前の問題"><svg viewBox="0 0 24 24"><path d="M15.4 4.6 8 12l7.4 7.4 1.4-1.4-6-6 6-6z"/></svg></button>
         <button class="round" id="pPlay" aria-label="もう一度聞く"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
         <button class="round sm" id="pNext" aria-label="次の問題"><svg viewBox="0 0 24 24"><path d="M8.6 4.6 16 12l-7.4 7.4-1.4-1.4 6-6-6-6z"/></svg></button>
       </div>
-      <div class="center"><button class="pill" id="pRate" aria-label="再生速度">1×</button></div>
+      <div class="center"><button class="pill" id="pRate" aria-label="再生速度">1×</button><button class="pill" id="pSetBtn" aria-expanded="false" aria-controls="pSet">設定</button></div>
+      <div class="settings" id="pSet" hidden>
+        <label class="set-row"><span>穴の割合</span><input type="range" id="sPct" min="5" max="100" step="5" value="15"><span class="num" id="sPctVal">15%</span></label>
+        <label class="set-row"><span>日本語訳</span><input type="checkbox" class="switch" id="sJa"></label>
+      </div>
       <div class="stack">
         <button class="btn" id="pCheck">答え合わせ</button>
         <button class="link muted" id="pReveal">答えを見る</button>
@@ -207,27 +223,28 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
     </div>
   </section>
 </div>
-<p class="ver">v9</p>
+<p class="ver">v10</p>
 <div class="scrim" id="scrim" hidden></div>
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="shTerm" hidden>
   <div class="sheet-in">
     <div class="sheet-head"><h3 id="shTerm"></h3><button class="x" id="shClose" aria-label="閉じる">×</button></div>
-    <div class="sec" id="shMine"><h4>あなたの動画から</h4><div id="shMineList"></div></div>
-    <div class="sec"><h4>例文（日本語訳つき）</h4><div id="shEx"></div></div>
+    <div class="sec" id="shMine"><h4>この動画から</h4><div id="shMineList"></div></div>
+    <div class="sec" id="shOther"><h4>ほかの動画から</h4><div id="shOtherList"></div></div>
+    <div class="sec"><h4>そのほかの例文</h4><div id="shEx"></div></div>
     <div class="sec" id="shDefSec"><h4>英英の意味</h4><div id="shDef"></div></div>
     <div class="sec"><h4>もっと見る</h4><div class="links" id="shLinks"></div></div>
   </div>
 </div>
 <div class="toast" id="toast" role="status"></div>
 
-<script src="qrcode.js?v=9"></script>
-<script src="words.js?v=9"></script>
-<script src="idioms.js?v=9"></script>
+<script src="qrcode.js?v=10"></script>
+<script src="words.js?v=10"></script>
+<script src="idioms.js?v=10"></script>
 <script>
 (function () {
   'use strict';
   // reload once when a newer version is published, so a cached page never lingers
-  var APP_V = 9;
+  var APP_V = 10;
   try {
     fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
       var asked = +(new URLSearchParams(location.search).get('v') || 0);
@@ -434,7 +451,72 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
   document.querySelectorAll('.seg button').forEach(function (b) { b.addEventListener('click', function () { show(b.dataset.view); }); });
   $('goCreate').addEventListener('click', function () { show('create'); });
 
+  // ---------- settings ----------
+  var settings = { pct: 15, ja: false };
+  try { Object.assign(settings, JSON.parse(localStorage.getItem('listening-cloze-settings') || '{}')); } catch (e) {}
+  function saveSettings() { try { localStorage.setItem('listening-cloze-settings', JSON.stringify(settings)); } catch (e) {} }
+  $('sPct').value = settings.pct; $('sPctVal').textContent = settings.pct + '%'; $('sJa').checked = !!settings.ja;
+  $('pSetBtn').addEventListener('click', function () { var o = $('pSet').hidden; $('pSet').hidden = !o; this.setAttribute('aria-expanded', String(o)); });
+  $('sPct').addEventListener('input', function () { settings.pct = +this.value; $('sPctVal').textContent = settings.pct + '%'; });
+  $('sPct').addEventListener('change', function () { saveSettings(); if (list.length) renderPractice(); });
+  $('sJa').addEventListener('change', function () { settings.ja = this.checked; saveSettings(); var it = cur(); if (it) showJa(it.text); });
+
+  // ---------- translation (MyMemory, cached in this browser) ----------
+  var TR = {};
+  try { TR = JSON.parse(localStorage.getItem('listening-cloze-tr') || '{}') || {}; } catch (e) { TR = {}; }
+  var trQueue = Promise.resolve(), trBlocked = false;
+  function translate(text) {
+    if (TR[text]) return Promise.resolve(TR[text]);
+    if (trBlocked) return Promise.reject(new Error('limit'));
+    trQueue = trQueue.catch(function () {}).then(function () {
+      if (TR[text]) return TR[text];
+      return fetch('https://api.mymemory.translated.net/get?langpair=en|ja&q=' + encodeURIComponent(text.slice(0, 480)))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var t = d && d.responseData && d.responseData.translatedText;
+          if (!t || d.responseStatus != 200 || /MYMEMORY WARNING|QUERY LENGTH LIMIT/i.test(t)) { if (d && d.responseStatus == 429) trBlocked = true; throw new Error('tr'); }
+          TR[text] = t;
+          try { localStorage.setItem('listening-cloze-tr', JSON.stringify(TR)); } catch (e) {}
+          return t;
+        });
+    });
+    return trQueue;
+  }
+  function showJa(text) {
+    var el = $('pJa');
+    el.hidden = !settings.ja;
+    if (!settings.ja) return;
+    el.textContent = TR[text] || '訳を読み込み中…';
+    translate(text).then(function (t) { if (cur() && cur().text === text) el.textContent = t; },
+      function () { if (cur() && cur().text === text) el.textContent = '訳を取得できませんでした'; });
+  }
+
+  // blanks chosen live from the slider: idioms first, then rarer words, names and numbers last
+  function blanksFor(text, pct) {
+    var toks = tokenize(text), ns = toks.map(norm), used = {}, units = [];
+    PHRASES.forEach(function (ph) {
+      for (var i = 0; i + ph.length <= ns.length; i++) {
+        var ok = true;
+        for (var k = 0; k < ph.length; k++) if (used[i + k] || !wordMatch(ns[i + k], ph[k])) { ok = false; break; }
+        if (ok) { var idx = []; for (k = 0; k < ph.length; k++) { idx.push(i + k); used[i + k] = 1; } units.push({ idx: idx, score: 1e6 + ph.length }); }
+      }
+    });
+    toks.forEach(function (t, i) {
+      if (used[i] || !/[a-z0-9]/.test(ns[i])) return;
+      var n = ns[i], core = parts(t).core;
+      var sentenceStart = i === 0 || /[.?!:]["')]?$/.test(toks[i - 1]);
+      var name = /^[A-Z]/.test(core) && !sentenceStart, num = /\d/.test(n);
+      var r = n.indexOf('-') > 0 ? Math.max.apply(null, n.split('-').map(rankOf)) : rankOf(n);
+      units.push({ idx: [i], score: (name || num) ? -1 : r + n.length / 100 });
+    });
+    units.sort(function (a, b) { return b.score - a.score; });
+    var target = Math.max(1, Math.round(toks.length * pct / 100)), out = [];
+    for (var u = 0; u < units.length && out.length < target; u++) out = out.concat(units[u].idx);
+    return out.sort(function (a, b) { return a - b; });
+  }
+
   // ---------- practice ----------
+  var curBlanks = [];
   var list = [], pos = 0, solved = false, counted = {};
   function renderPractice() {
     if (!deck || !deckItems(deck).length) { var ds = decks(); setDeck(ds.length ? ds[0].videoId : null); }
@@ -444,10 +526,11 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
     if (!has) return;
     pos = Math.min(posMap[deck] || 0, list.length - 1);
     var it = list[pos], toks = tokenize(it.text), html = '';
+    curBlanks = blanksFor(it.text, settings.pct);
     $('pCount').textContent = (pos + 1) + ' / ' + list.length;
     $('pBar').style.width = ((pos + 1) / list.length * 100) + '%';
     toks.forEach(function (tok, i) {
-      if (it.blanks.indexOf(i) >= 0) {
+      if (curBlanks.indexOf(i) >= 0) {
         var p = parts(tok), w = Math.max(3, p.core.length + 1);
         html += esc(p.pre) + '<input type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-i="' + i + '" style="width:' + (w * 0.6 + 0.6) + 'em" aria-label="空欄">' + esc(p.post) + ' ';
       } else html += '<span class="w" data-i="' + i + '">' + esc(tok) + '</span> ';
@@ -455,6 +538,7 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
     $('sentence').innerHTML = html;
     $('pAnswer').hidden = true;
     setSolved(false);
+    showJa(it.text);
     ensureVideo(it.videoId, it.start, null);
   }
   function cur() { return list[pos]; }
@@ -475,7 +559,7 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
   }
   function reveal() {
     var it = cur(), toks = tokenize(it.text);
-    $('pAnswer').innerHTML = toks.map(function (t, i) { var w = '<span class="w" data-i="' + i + '">' + esc(t) + '</span>'; return it.blanks.indexOf(i) >= 0 ? '<b>' + w + '</b>' : w; }).join(' ');
+    $('pAnswer').innerHTML = toks.map(function (t, i) { var w = '<span class="w" data-i="' + i + '">' + esc(t) + '</span>'; return curBlanks.indexOf(i) >= 0 ? '<b>' + w + '</b>' : w; }).join(' ');
     $('pAnswer').hidden = false; setSolved(true);
   }
   function go(d, autoplay) {
@@ -563,11 +647,23 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
     $('shTerm').textContent = term;
     // 1) the user's own clips
     var re = new RegExp('(^|[^a-z])' + termPattern(lower) + '([^a-z]|$)', 'i');
-    var mine = items.filter(function (it) { return re.test(it.text); }).slice(0, 30);
-    $('shMine').hidden = !mine.length;
-    $('shMineList').innerHTML = mine.map(function (it) {
-      return '<div class="ex"><button class="play" data-id="' + esc(it.id) + '" aria-label="再生"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button><div><div class="en">' + hl(it.text, term) + '</div></div></div>';
-    }).join('');
+    var vid = cur() ? cur().videoId : null;
+    var hits = items.filter(function (it) { return re.test(it.text); });
+    var here = hits.filter(function (it) { return it.videoId === vid; }).sort(function (a, b) { return a.start - b.start; });
+    var other = hits.filter(function (it) { return it.videoId !== vid; }).slice(0, 20);
+    function clipRow(it, k) {
+      return '<div class="ex"><button class="play" data-id="' + esc(it.id) + '" aria-label="再生"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button><div><div class="en">' + hl(it.text, term) + '</div>' +
+        (settings.ja ? '<div class="ja" data-tr="' + esc(it.id) + '">' + esc(TR[it.text] || '') + '</div>' : '') + '</div></div>';
+    }
+    $('shMine').hidden = !here.length; $('shMineList').innerHTML = here.map(clipRow).join('');
+    $('shOther').hidden = !other.length; $('shOtherList').innerHTML = other.map(clipRow).join('');
+    if (settings.ja) here.concat(other).slice(0, 15).forEach(function (it) {
+      if (TR[it.text]) return;
+      translate(it.text).then(function (t) {
+        if (token !== shToken) return;
+        document.querySelectorAll('[data-tr="' + it.id + '"]').forEach(function (el) { el.textContent = t; });
+      }, function () {});
+    });
     // 2) Tatoeba example sentences with Japanese translations
     $('shEx').innerHTML = '<p class="more">読み込み中…</p>';
     var q = encodeURIComponent(lower.indexOf(' ') > 0 ? '"' + lower + '"' : '=' + lower);
@@ -586,7 +682,7 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
       }); });
       rows.sort(function (a, b) { return (b.ja ? 1 : 0) - (a.ja ? 1 : 0); });
       $('shEx').innerHTML = rows.length ? rows.slice(0, 30).map(function (r) {
-        return '<div class="ex"><div><div class="en">' + hl(r.en, term) + '</div>' + (r.ja ? '<div class="ja">' + esc(r.ja) + '</div>' : '') + '</div></div>';
+        return '<div class="ex"><div><div class="en">' + hl(r.en, term) + '</div>' + (r.ja && settings.ja ? '<div class="ja">' + esc(r.ja) + '</div>' : '') + '</div></div>';
       }).join('') : '<p class="more">例文が見つかりませんでした。下の「もっと見る」から探せます</p>';
     });
     // 3) English definitions
@@ -614,6 +710,10 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
   $('shClose').addEventListener('click', closeWord);
   $('scrim').addEventListener('click', closeWord);
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('sheet').hidden) { e.stopImmediatePropagation(); closeWord(); } }, true);
+  $('shOtherList').addEventListener('click', function (e) {
+    var b = e.target.closest('.play'); if (!b) return;
+    var it = items.find(function (x) { return x.id === b.dataset.id; }); if (it) playClip(it);
+  });
   $('shMineList').addEventListener('click', function (e) {
     var b = e.target.closest('.play'); if (!b) return;
     var it = items.find(function (x) { return x.id === b.dataset.id; }); if (it) playClip(it);
