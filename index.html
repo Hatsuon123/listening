@@ -101,7 +101,30 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
 .qr { display: flex; justify-content: center; }
 .qr img { width: 100%; max-width: 300px; image-rendering: pixelated; border-radius: 12px; background: #fff; }
 
-.toast { position: fixed; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 20px; border-radius: 980px; font-size: 15px; opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap; }
+.sentence .w, .answer .w { cursor: pointer; border-radius: 4px; }
+.sentence .w:hover, .answer .w:hover { background: var(--fill); }
+.tip { text-align: center; color: var(--muted); font-size: 13px; margin: -16px 0 0; }
+.scrim { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 20; }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; max-height: 78vh; overflow-y: auto; background: var(--bg); border-radius: 18px 18px 0 0; box-shadow: 0 -4px 30px rgba(0,0,0,.2); padding: 20px max(20px, env(safe-area-inset-right, 0px)) calc(28px + env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px)); }
+.sheet-in { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sheet-head h3 { font-family: var(--font-en); font-size: 26px; margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.x { appearance: none; border: 0; background: var(--fill); color: var(--muted); width: 32px; height: 32px; border-radius: 50%; font-size: 18px; cursor: pointer; flex: none; }
+.sec { display: flex; flex-direction: column; gap: 10px; }
+.sec h4 { margin: 0; font-size: 13px; color: var(--muted); font-weight: 600; letter-spacing: .04em; }
+.ex { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.ex:last-child { border-bottom: 0; }
+.ex .en { font-family: var(--font-en); font-size: 17px; }
+.ex .ja { color: var(--muted); font-size: 14px; margin-top: 2px; }
+.ex b { color: var(--accent); font-weight: 600; }
+.ex .play { appearance: none; border: 0; background: var(--fill); color: var(--fg); width: 32px; height: 32px; border-radius: 50%; cursor: pointer; flex: none; display: grid; place-items: center; }
+.ex .play svg { width: 14px; height: 14px; fill: currentColor; }
+.def { font-size: 15px; }
+.def i { color: var(--muted); font-style: normal; font-size: 13px; margin-right: 6px; }
+.more { color: var(--muted); font-size: 14px; }
+.links { display: flex; flex-wrap: wrap; gap: 8px; }
+.links a { background: var(--fill); color: var(--accent); text-decoration: none; font-size: 14px; padding: 8px 14px; border-radius: 980px; }
+.toast { position: fixed; z-index: 30; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 20px; border-radius: 980px; font-size: 15px; opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap; }
 .toast.show { opacity: 1; }
 @media (max-width: 420px) { .sentence { font-size: 22px; } .sentence input { font-size: 21px; } h2 { font-size: 24px; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -139,6 +162,7 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
         <button class="link muted" id="pReveal">答えを見る</button>
       </div>
       <div class="answer" id="pAnswer" hidden></div>
+      <p class="tip">単語をタップすると例文が見られます</p>
     </div>
   </section>
 
@@ -183,17 +207,27 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
     </div>
   </section>
 </div>
-<p class="ver">v8</p>
+<p class="ver">v9</p>
+<div class="scrim" id="scrim" hidden></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="shTerm" hidden>
+  <div class="sheet-in">
+    <div class="sheet-head"><h3 id="shTerm"></h3><button class="x" id="shClose" aria-label="閉じる">×</button></div>
+    <div class="sec" id="shMine"><h4>あなたの動画から</h4><div id="shMineList"></div></div>
+    <div class="sec"><h4>例文（日本語訳つき）</h4><div id="shEx"></div></div>
+    <div class="sec" id="shDefSec"><h4>英英の意味</h4><div id="shDef"></div></div>
+    <div class="sec"><h4>もっと見る</h4><div class="links" id="shLinks"></div></div>
+  </div>
+</div>
 <div class="toast" id="toast" role="status"></div>
 
-<script src="qrcode.js?v=8"></script>
-<script src="words.js?v=8"></script>
-<script src="idioms.js?v=8"></script>
+<script src="qrcode.js?v=9"></script>
+<script src="words.js?v=9"></script>
+<script src="idioms.js?v=9"></script>
 <script>
 (function () {
   'use strict';
   // reload once when a newer version is published, so a cached page never lingers
-  var APP_V = 8;
+  var APP_V = 9;
   try {
     fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
       var asked = +(new URLSearchParams(location.search).get('v') || 0);
@@ -416,7 +450,7 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
       if (it.blanks.indexOf(i) >= 0) {
         var p = parts(tok), w = Math.max(3, p.core.length + 1);
         html += esc(p.pre) + '<input type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-i="' + i + '" style="width:' + (w * 0.6 + 0.6) + 'em" aria-label="空欄">' + esc(p.post) + ' ';
-      } else html += esc(tok) + ' ';
+      } else html += '<span class="w" data-i="' + i + '">' + esc(tok) + '</span> ';
     });
     $('sentence').innerHTML = html;
     $('pAnswer').hidden = true;
@@ -441,7 +475,7 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
   }
   function reveal() {
     var it = cur(), toks = tokenize(it.text);
-    $('pAnswer').innerHTML = toks.map(function (t, i) { return it.blanks.indexOf(i) >= 0 ? '<b>' + esc(t) + '</b>' : esc(t); }).join(' ');
+    $('pAnswer').innerHTML = toks.map(function (t, i) { var w = '<span class="w" data-i="' + i + '">' + esc(t) + '</span>'; return it.blanks.indexOf(i) >= 0 ? '<b>' + w + '</b>' : w; }).join(' ');
     $('pAnswer').hidden = false; setSolved(true);
   }
   function go(d, autoplay) {
@@ -500,6 +534,99 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
     toast(parsed.length + '問できました');
     show('practice');
   });
+
+  // ---------- word sheet ----------
+  function phraseAt(toks, i) {
+    var ns = toks.map(norm), hit = null;
+    PHRASES.some(function (ph) {
+      for (var s0 = Math.max(0, i - ph.length + 1); s0 <= i && s0 + ph.length <= ns.length; s0++) {
+        var ok = true;
+        for (var k = 0; k < ph.length; k++) if (!wordMatch(ns[s0 + k], ph[k])) { ok = false; break; }
+        if (ok) { hit = toks.slice(s0, s0 + ph.length).map(function (t) { return parts(t).core; }).join(' '); return true; }
+      }
+      return false;
+    });
+    return hit;
+  }
+  // each word may carry a short inflection: scratch -> scratches, boil -> boiled
+  function termPattern(term) {
+    return term.toLowerCase().split(/\s+/).map(function (w) { return w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + "[a-z']{0,3}"; }).join('\\s+');
+  }
+  function hl(text, term) {
+    return esc(text).replace(new RegExp('\\b(' + termPattern(term) + ')', 'ig'), '<b>$1</b>');
+  }
+  var shToken = 0;
+  function openWord(toks, i) {
+    var term = phraseAt(toks, i) || parts(toks[i]).core;
+    if (!/[A-Za-z]/.test(term)) return;
+    var token = ++shToken, lower = term.toLowerCase();
+    $('shTerm').textContent = term;
+    // 1) the user's own clips
+    var re = new RegExp('(^|[^a-z])' + termPattern(lower) + '([^a-z]|$)', 'i');
+    var mine = items.filter(function (it) { return re.test(it.text); }).slice(0, 30);
+    $('shMine').hidden = !mine.length;
+    $('shMineList').innerHTML = mine.map(function (it) {
+      return '<div class="ex"><button class="play" data-id="' + esc(it.id) + '" aria-label="再生"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button><div><div class="en">' + hl(it.text, term) + '</div></div></div>';
+    }).join('');
+    // 2) Tatoeba example sentences with Japanese translations
+    $('shEx').innerHTML = '<p class="more">読み込み中…</p>';
+    var q = encodeURIComponent(lower.indexOf(' ') > 0 ? '"' + lower + '"' : '=' + lower);
+    var pages = [1, 2, 3].map(function (pg) {
+      return fetch('https://tatoeba.org/en/api_v0/search?from=eng&to=jpn&orphans=no&unapproved=no&sort=random&query=' + q + '&page=' + pg)
+        .then(function (r) { return r.ok ? r.json() : { results: [] }; }).catch(function () { return { results: [] }; });
+    });
+    Promise.all(pages).then(function (res) {
+      if (token !== shToken) return;
+      var seen = {}, rows = [];
+      res.forEach(function (d) { (d && d.results || []).forEach(function (r) {
+        if (!r || !r.text || seen[r.text]) return; seen[r.text] = 1;
+        var ja = '';
+        (r.translations || []).forEach(function (grp) { (grp || []).forEach(function (t) { if (!ja && t && t.lang === 'jpn') ja = t.text; }); });
+        rows.push({ en: r.text, ja: ja });
+      }); });
+      rows.sort(function (a, b) { return (b.ja ? 1 : 0) - (a.ja ? 1 : 0); });
+      $('shEx').innerHTML = rows.length ? rows.slice(0, 30).map(function (r) {
+        return '<div class="ex"><div><div class="en">' + hl(r.en, term) + '</div>' + (r.ja ? '<div class="ja">' + esc(r.ja) + '</div>' : '') + '</div></div>';
+      }).join('') : '<p class="more">例文が見つかりませんでした。下の「もっと見る」から探せます</p>';
+    });
+    // 3) English definitions
+    $('shDefSec').hidden = true; $('shDef').innerHTML = '';
+    if (lower.indexOf(' ') < 0) {
+      fetch('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(lower)).then(function (r) { return r.ok ? r.json() : []; }).then(function (d) {
+        if (token !== shToken || !Array.isArray(d) || !d.length) return;
+        var out = [];
+        d.forEach(function (e) { (e.meanings || []).forEach(function (m) { (m.definitions || []).slice(0, 2).forEach(function (df) {
+          if (out.length < 4) out.push('<div class="def"><i>' + esc(m.partOfSpeech || '') + '</i>' + esc(df.definition) + (df.example ? '<div class="ja">“' + hl(df.example, term) + '”</div>' : '') + '</div>');
+        }); }); });
+        if (out.length) { $('shDef').innerHTML = out.join(''); $('shDefSec').hidden = false; }
+      }).catch(function () {});
+    }
+    // 4) links out
+    var enc = encodeURIComponent(lower);
+    $('shLinks').innerHTML =
+      '<a href="https://youglish.com/pronounce/' + enc + '/english/us" target="_blank" rel="noopener">YouTubeで使われ方を聞く</a>' +
+      '<a href="https://ejje.weblio.jp/content/' + enc + '" target="_blank" rel="noopener">Weblio英和</a>' +
+      '<a href="https://ejje.weblio.jp/sentence/content/' + enc + '" target="_blank" rel="noopener">Weblio例文</a>' +
+      '<a href="https://www.google.com/search?q=' + encodeURIComponent('"' + lower + '"') + '&tbm=nws" target="_blank" rel="noopener">ニュースでの使用例</a>';
+    $('scrim').hidden = false; $('sheet').hidden = false; $('sheet').scrollTop = 0; $('shClose').focus();
+  }
+  function closeWord() { $('scrim').hidden = true; $('sheet').hidden = true; shToken++; }
+  $('shClose').addEventListener('click', closeWord);
+  $('scrim').addEventListener('click', closeWord);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('sheet').hidden) { e.stopImmediatePropagation(); closeWord(); } }, true);
+  $('shMineList').addEventListener('click', function (e) {
+    var b = e.target.closest('.play'); if (!b) return;
+    var it = items.find(function (x) { return x.id === b.dataset.id; }); if (it) playClip(it);
+  });
+  function wordClick(e) {
+    var it = cur(); if (!it) return;
+    var w = e.target.closest('.w');
+    var inp = e.target.closest('input');
+    if (w) openWord(tokenize(it.text), +w.dataset.i);
+    else if (inp && (inp.readOnly || solved)) openWord(tokenize(it.text), +inp.dataset.i);
+  }
+  $('sentence').addEventListener('click', wordClick);
+  $('pAnswer').addEventListener('click', wordClick);
 
   // ---------- list ----------
   var pendingDel = null;
