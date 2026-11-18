@@ -12,6 +12,7 @@
   --fill: #f5f5f7;
   --fg: #1d1d1f;
   --muted: #86868b;
+  --sub: #3a3a3c;
   --line: #e5e5ea;
   --accent: #0071e3;
   --accent-fg: #ffffff;
@@ -24,7 +25,7 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #000000; --fill: #1c1c1e; --fg: #f5f5f7; --muted: #8e8e93; --line: #2c2c2e;
+    --bg: #000000; --fill: #1c1c1e; --fg: #f5f5f7; --muted: #8e8e93; --sub: #d1d1d6; --line: #2c2c2e;
     --accent: #2997ff; --accent-fg: #ffffff; --ok: #30d158; --ng: #ff453a; --seg-on: #3a3a3c;
     color-scheme: dark;
   }
@@ -80,6 +81,7 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
 .sentence input { font: inherit; font-size: 24px; color: var(--fg); background: var(--fill); border: 0; border-bottom: 2px solid var(--line); border-radius: 8px 8px 0 0; padding: 0 4px; margin: 0 1px; text-align: center; display: inline-block; }
 .sentence input:focus { border-bottom-color: var(--accent); outline: none; }
 .sentence input.ok { color: var(--ok); border-bottom-color: var(--ok); background: none; font-weight: 600; }
+.sentence input.rev { color: var(--accent); border-bottom-color: var(--accent); background: none; font-weight: 600; }
 .sentence input.ng { color: var(--ng); border-bottom-color: var(--ng); }
 .answer { font-family: var(--font-en); text-align: center; color: var(--muted); font-size: 17px; }
 .answer b { color: var(--fg); font-weight: 600; }
@@ -104,7 +106,7 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
 .sentence .w, .answer .w { cursor: pointer; border-radius: 4px; }
 .sentence .w:hover, .answer .w:hover { background: var(--fill); }
 .tip { text-align: center; color: var(--muted); font-size: 13px; margin: -16px 0 0; }
-.ja-line { text-align: center; color: var(--muted); font-size: 15px; margin: -12px 0 0; min-height: 1.4em; }
+.ja-line { text-align: center; color: var(--sub); font-size: 19px; line-height: 1.6; margin: -8px 0 0; min-height: 1.4em; }
 .settings { background: var(--fill); border-radius: 14px; padding: 6px 16px; display: flex; flex-direction: column; }
 .set-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; font-size: 15px; }
 .set-row + .set-row { border-top: 1px solid var(--line); }
@@ -130,7 +132,7 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
 .ex { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .ex:last-child { border-bottom: 0; }
 .ex .en { font-family: var(--font-en); font-size: 17px; }
-.ex .ja { color: var(--muted); font-size: 14px; margin-top: 2px; }
+.ex .ja { color: var(--sub); font-size: 16px; margin-top: 4px; }
 .ex b { color: var(--accent); font-weight: 600; }
 .ex .play { appearance: none; border: 0; background: var(--fill); color: var(--fg); width: 32px; height: 32px; border-radius: 50%; cursor: pointer; flex: none; display: grid; place-items: center; }
 .ex .play svg { width: 14px; height: 14px; fill: currentColor; }
@@ -233,7 +235,7 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
     </div>
   </section>
 </div>
-<p class="ver">v11</p>
+<p class="ver">v12</p>
 <div class="scrim" id="scrim" hidden></div>
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="shTerm" hidden>
   <div class="sheet-in">
@@ -247,14 +249,14 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
 </div>
 <div class="toast" id="toast" role="status"></div>
 
-<script src="qrcode.js?v=11"></script>
-<script src="words.js?v=11"></script>
-<script src="idioms.js?v=11"></script>
+<script src="qrcode.js?v=12"></script>
+<script src="words.js?v=12"></script>
+<script src="idioms.js?v=12"></script>
 <script>
 (function () {
   'use strict';
   // reload once when a newer version is published, so a cached page never lingers
-  var APP_V = 11;
+  var APP_V = 12;
   try {
     fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
       var asked = +(new URLSearchParams(location.search).get('v') || 0);
@@ -581,8 +583,13 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
   }
   function reveal() {
     var it = cur(), toks = tokenize(it.text);
-    $('pAnswer').innerHTML = toks.map(function (t, i) { var w = '<span class="w" data-i="' + i + '">' + esc(t) + '</span>'; return curBlanks.indexOf(i) >= 0 ? '<b>' + w + '</b>' : w; }).join(' ');
-    $('pAnswer').hidden = false; setSolved(true);
+    // put the right words straight into the blanks; ones already correct stay green
+    inputs().forEach(function (inp) {
+      if (inp.classList.contains('ok')) return;
+      inp.value = parts(toks[+inp.dataset.i]).core;
+      inp.classList.remove('ng'); inp.classList.add('rev'); inp.readOnly = true;
+    });
+    setSolved(true); $('pCheck').focus();
   }
   function go(d, autoplay) {
     if (!list.length) return;
