@@ -183,10 +183,12 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
     </div>
   </section>
 </div>
-<p class="ver">v6</p>
+<p class="ver">v7</p>
 <div class="toast" id="toast" role="status"></div>
 
 <script src="qrcode.js"></script>
+<script src="words.js"></script>
+<script src="idioms.js"></script>
 <script>
 (function () {
   'use strict';
@@ -278,21 +280,56 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
     });
   }
   var REDUCED = ['a', 'an', 'the', 'to', 'of', 'and', 'or', 'for', 'at', 'in', 'on', 'it', "it's", 'is', 'was', 'are', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'did', "don't", "didn't", "can't", 'can', 'could', 'would', 'should', 'will', "i'm", "i'll", "i'd", "i've", "you're", "you'll", "that's", "there's", "what's", 'gonna', 'wanna', 'gotta', 'kinda', 'him', 'her', 'them', 'you', 'that', 'like', 'just', 'some', 'if', 'but', 'with', "we're", "they're", "he's", "she's", "won't", "isn't", "wasn't", "let's", 'than', 'out', 'up', 'want', 'going', 'got'];
-  function autoBlanks(text) {
+  function reducedBlanks(text) {
     var toks = tokenize(text), cand = [];
     toks.forEach(function (t, i) { if (REDUCED.indexOf(norm(t)) >= 0) cand.push(i); });
-    var max = Math.min(3, Math.max(1, Math.round(toks.length / 5)));
-    if (!cand.length) {
-      var best = -1, len = 0;
-      toks.forEach(function (t, i) { var l = norm(t).length; if (l > len) { len = l; best = i; } });
-      return best >= 0 ? [best] : [];
-    }
-    if (cand.length <= max) return cand;
-    // spread picks evenly across the sentence
-    var pick = [];
-    for (var k = 0; k < max; k++) pick.push(cand[Math.floor((k + 0.5) * cand.length / max)]);
-    return pick.filter(function (v, i, a) { return a.indexOf(v) === i; });
+    if (!cand.length) return [];
+    return [cand[Math.floor(cand.length / 2)]];
   }
+  // word rank: 0 = most common; unknown words count as very rare
+  var RANK = {};
+  (window.COMMON_WORDS || '').split(' ').forEach(function (w, i) { if (!(w in RANK)) RANK[w] = i; });
+  var HAS_RANK = !!window.COMMON_WORDS;
+  function rankOf(w) {
+    var c = [w, w.replace(/'s$/, ''), w.replace(/s$/, ''), w.replace(/es$/, ''), w.replace(/ed$/, ''), w.replace(/ed$/, 'e'), w.replace(/ing$/, ''), w.replace(/ing$/, 'e'), w.replace(/ly$/, ''), w.replace(/ies$/, 'y')];
+    var best = 99999;
+    c.forEach(function (x) { if (x.length > 2 && x in RANK && RANK[x] < best) best = RANK[x]; });
+    return best;
+  }
+  var PHRASES = (window.IDIOMS || []).map(function (p) { return p.toLowerCase().split(' '); }).sort(function (a, b) { return b.length - a.length; });
+  function wordMatch(tok, w) {
+    if (w === '*') return true;
+    if (tok === w) return true;
+    if (w.length >= 3 && tok.indexOf(w) === 0 && tok.length - w.length <= 3) return true;
+    if (w.length >= 4 && /e$/.test(w) && tok.indexOf(w.slice(0, -1)) === 0 && tok.length - w.length <= 3) return true;
+    return false;
+  }
+  function autoBlanks(text) {
+    var toks = tokenize(text), ns = toks.map(norm), used = {}, units = [];
+    PHRASES.forEach(function (ph) {
+      for (var i = 0; i + ph.length <= ns.length; i++) {
+        var ok = true;
+        for (var k = 0; k < ph.length; k++) if (used[i + k] || !wordMatch(ns[i + k], ph[k])) { ok = false; break; }
+        if (ok) { var idx = []; for (k = 0; k < ph.length; k++) { idx.push(i + k); used[i + k] = 1; } units.push({ idx: idx, score: 100000 + ph.length }); }
+      }
+    });
+    if (HAS_RANK) toks.forEach(function (t, i) {
+      var n = ns[i];
+      if (used[i] || !/^[a-z][a-z'-]*$/.test(n) || n.replace(/['-]/g, '').length < 4) return;
+      var core = parts(t).core;
+      var sentenceStart = i === 0 || /[.?!:]["')]?$/.test(toks[i - 1]);
+      if (/^[A-Z]/.test(core) && !sentenceStart) return; // names
+      var r = n.indexOf('-') > 0 ? Math.max.apply(null, n.split('-').map(rankOf)) : rankOf(n);
+      if (r >= 2500) units.push({ idx: [i], score: r });
+    });
+    if (!units.length) return reducedBlanks(text);
+    units.sort(function (a, b) { return b.score - a.score; });
+    var max = Math.min(3, Math.max(1, Math.round(toks.length / 6)));
+    var out = [];
+    units.slice(0, max).forEach(function (u) { out = out.concat(u.idx); });
+    return out.sort(function (a, b) { return a - b; });
+  }
+
 
   // ---------- player ----------
   var player = null, ready = false, curVid = null, pending = null, clip = null, rate = 1, timer = null;
@@ -533,6 +570,12 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
     return true;
   }
   window.addEventListener('hashchange', importFromHash);
+  try {
+    if (localStorage.getItem('listening-cloze-blankv') !== '2' && HAS_RANK) {
+      items.forEach(function (it) { it.blanks = autoBlanks(it.text); });
+      save(); localStorage.setItem('listening-cloze-blankv', '2');
+    }
+  } catch (e) {}
   var origShow = show;
   show = function (v) { if (v === 'list') closeSend(); origShow(v); };
   if (!importFromHash()) show(items.length ? 'practice' : 'create');
