@@ -141,23 +141,25 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
   <section id="view-create" class="col" hidden>
     <div id="s1" class="col">
       <h2>YouTubeのURL</h2>
+      <p class="lead">1 / 2</p>
       <input type="text" id="cUrl" placeholder="youtube.com/watch?v=…" autocomplete="off" aria-label="YouTubeのURL">
       <div class="center"><button class="btn" id="s1Next">次へ</button></div>
     </div>
     <div id="s2" class="col" hidden>
       <h2>文字起こしを貼り付け</h2>
-      <textarea id="cScript" placeholder="0:00&#10;Hi, I'm Vanessa from SpeakEnglishWithVanessa.com.&#10;0:04&#10;…" aria-label="文字起こし"></textarea>
+      <p class="lead">2 / 2　この動画のセリフを貼ると、問題が自動でできます</p>
+      <ol class="how">
+        <li>パソコンのYouTubeでこの動画を開く</li>
+        <li>説明欄のいちばん下の「文字起こしを表示」を押す</li>
+        <li>右に出た文字を最初から最後まで選んでコピー</li>
+        <li>下の欄に貼り付ける</li>
+      </ol>
+      <textarea id="cScript" placeholder="ここに貼り付け&#10;&#10;0:00&#10;Hi, I'm Vanessa…&#10;0:04&#10;…" aria-label="文字起こし"></textarea>
       <p class="ready" id="cReady"></p>
       <div class="stack">
         <button class="btn" id="cMake" disabled>問題を作る</button>
-        <button class="link muted" id="howToggle">文字起こしの出し方</button>
+        <button class="link muted" id="s2Back">URLを変える</button>
       </div>
-      <ol class="how" id="how" hidden>
-        <li>パソコンでYouTubeの動画を開く</li>
-        <li>説明欄のいちばん下の「文字起こしを表示」を押す</li>
-        <li>右に出た文字を最初から最後までドラッグで選んでコピー</li>
-        <li><small>時間（0:00 など）ごとコピーしてOKです</small></li>
-      </ol>
     </div>
   </section>
 
@@ -316,7 +318,7 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
     ['practice', 'create', 'list'].forEach(function (n) { $('view-' + n).hidden = n !== v; $('tab-' + n).setAttribute('aria-selected', String(n === v)); });
     if (v === 'practice') renderPractice();
     if (v === 'list') { $('videoBox').hidden = true; perr(''); renderList(); }
-    if (v === 'create') { goStep(1); }
+    if (v === 'create') { $('cUrl').value = ''; goStep(1); }
   }
   document.querySelectorAll('.seg button').forEach(function (b) { b.addEventListener('click', function () { show(b.dataset.view); }); });
   $('goCreate').addEventListener('click', function () { show('create'); });
@@ -394,8 +396,8 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
   function goStep(n) {
     $('s1').hidden = n !== 1; $('s2').hidden = n !== 2;
     $('videoBox').hidden = n === 1; perr('');
-    if (n === 1) { $('cUrl').value = ''; setTimeout(function () { $('cUrl').focus(); }, 0); }
-    if (n === 2) { $('cScript').value = ''; updReady(); $('cScript').focus(); }
+    if (n === 1) { setTimeout(function () { $('cUrl').focus(); }, 0); }
+    if (n === 2) { $('cScript').value = ''; updReady(); }
   }
   function next1() {
     newVid = parseId($('cUrl').value);
@@ -404,14 +406,13 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
   }
   $('s1Next').addEventListener('click', next1);
   $('cUrl').addEventListener('keydown', function (e) { if (e.key === 'Enter') next1(); });
-  $('cUrl').addEventListener('paste', function () { setTimeout(function () { if (parseId($('cUrl').value)) next1(); }, 0); });
   function updReady() {
     parsed = groupSegments(parseTranscript($('cScript').value));
     $('cMake').disabled = !parsed.length;
-    $('cReady').textContent = parsed.length ? parsed.length + '問できます' : ($('cScript').value.trim() ? '時間（0:00 など）が見つかりません' : '');
+    $('cReady').textContent = parsed.length ? parsed.length + '問できます' : ($('cScript').value.trim() ? '時間（0:00 など）が入った文字起こしを貼ってください' : '貼り付けると「問題を作る」が押せます');
   }
   $('cScript').addEventListener('input', updReady);
-  $('howToggle').addEventListener('click', function () { $('how').hidden = !$('how').hidden; });
+  $('s2Back').addEventListener('click', function () { stop(); if (player && ready) player.pauseVideo(); goStep(1); });
   $('cMake').addEventListener('click', function () {
     var now = Date.now();
     items = items.filter(function (it) { return it.videoId !== newVid; });
