@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Listening</title>
 <style>
@@ -95,6 +96,7 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
 .r .del { appearance: none; border: 0; background: none; font: inherit; font-size: 14px; color: var(--muted); cursor: pointer; padding: 4px 6px; }
 .r .del.confirm { color: var(--ng); }
 .empty { text-align: center; color: var(--muted); }
+.ver { text-align: center; color: var(--line); font-size: 12px; margin: 32px 0 0; }
 .r .send { appearance: none; border: 0; background: none; font: inherit; font-size: 14px; color: var(--accent); cursor: pointer; padding: 4px 6px; white-space: nowrap; }
 .qr { display: flex; justify-content: center; }
 .qr img { width: 100%; max-width: 300px; image-rendering: pixelated; border-radius: 12px; background: #fff; }
@@ -181,6 +183,7 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
     </div>
   </section>
 </div>
+<p class="ver">v6</p>
 <div class="toast" id="toast" role="status"></div>
 
 <script src="qrcode.js"></script>
@@ -226,7 +229,7 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
   }
   function parseTranscript(raw) {
     var segs = [], cur = null;
-    raw.split(/\r?\n/).forEach(function (line) {
+    raw.replace(/[\u200B-\u200F\u2060\uFEFF]/g, '').replace(/[\u00A0\u2007\u202F\u3000]/g, ' ').split(/\r\n|\r|\n|\u2028|\u2029/).forEach(function (line) {
       line = line.trim();
       if (!line || line === 'WEBVTT' || /^\d+$/.test(line) || RE_LABEL_ONLY.test(line) || RE_SKIP.test(line)) return;
       var m;
