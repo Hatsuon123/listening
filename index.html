@@ -95,6 +95,9 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
 .r .del { appearance: none; border: 0; background: none; font: inherit; font-size: 14px; color: var(--muted); cursor: pointer; padding: 4px 6px; }
 .r .del.confirm { color: var(--ng); }
 .empty { text-align: center; color: var(--muted); }
+.r .send { appearance: none; border: 0; background: none; font: inherit; font-size: 14px; color: var(--accent); cursor: pointer; padding: 4px 6px; white-space: nowrap; }
+.qr { display: flex; justify-content: center; }
+.qr img { width: 100%; max-width: 300px; image-rendering: pixelated; border-radius: 12px; background: #fff; }
 
 .toast { position: fixed; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 20px; border-radius: 980px; font-size: 15px; opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap; }
 .toast.show { opacity: 1; }
@@ -166,10 +169,21 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
   <!-- 一覧 -->
   <section id="view-list" class="col" hidden>
     <div class="rows" id="lList"></div>
+    <div id="sendBox" class="col" hidden>
+      <h2>スマホで開く</h2>
+      <p class="lead" id="sendLead">スマホのカメラで読み取ってください</p>
+      <div class="qr" id="qrBox"></div>
+      <div class="stack">
+        <button class="btn" id="sendCopy">リンクをコピー</button>
+        <button class="link muted" id="sendClose">閉じる</button>
+      </div>
+      <p class="ready">読み取れないときは、コピーしたリンクを自分宛てにメールやLINEで送ってください</p>
+    </div>
   </section>
 </div>
 <div class="toast" id="toast" role="status"></div>
 
+<script src="qrcode.js"></script>
 <script>
 (function () {
   'use strict';
@@ -433,12 +447,14 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
       var done = deckItems(d.videoId).filter(function (it) { return it.correct; }).length;
       return '<div class="r"><img src="https://i.ytimg.com/vi/' + esc(d.videoId) + '/mqdefault.jpg" alt="" loading="lazy">' +
         '<div class="txt" data-v="' + esc(d.videoId) + '" role="button" tabindex="0"><span class="t1">' + esc(d.title) + '</span><span class="t2">' + done + ' / ' + d.n + '問 正解</span></div>' +
+        '<button class="send" data-v="' + esc(d.videoId) + '">スマホへ</button>' +
         '<button class="del' + (pendingDel === d.videoId ? ' confirm' : '') + '" data-v="' + esc(d.videoId) + '">' + (pendingDel === d.videoId ? '削除する' : '削除') + '</button></div>';
     }).join('');
   }
   $('lList').addEventListener('click', function (e) {
-    var t = e.target.closest('.txt'), del = e.target.closest('.del');
+    var t = e.target.closest('.txt'), del = e.target.closest('.del'), snd = e.target.closest('.send');
     if (t) { setDeck(t.dataset.v); show('practice'); }
+    if (snd) openSend(snd.dataset.v);
     if (del) {
       var v = del.dataset.v;
       if (pendingDel !== v) { pendingDel = v; renderList(); setTimeout(function () { if (pendingDel === v) { pendingDel = null; renderList(); } }, 3000); return; }
@@ -447,7 +463,61 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
   });
   $('lList').addEventListener('keydown', function (e) { var t = e.target.closest('.txt'); if (t && e.key === 'Enter') { setDeck(t.dataset.v); show('practice'); } });
 
-  show(items.length ? 'practice' : 'create');
+  // ---------- send to phone (deck packed into the link's #hash; never sent to a server) ----------
+  function b64u(bytes) { var s = ''; for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+  function unb64u(str) { str = str.replace(/-/g, '+').replace(/_/g, '/'); while (str.length % 4) str += '='; var s = atob(str), out = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) out[i] = s.charCodeAt(i); return out; }
+  function pack(v) {
+    var lines = [v].concat(deckItems(v).map(function (i) { return Math.round(i.start * 10) + '|' + Math.round(i.end * 10) + '|' + i.blanks.join(',') + '|' + i.text; })).join('\n');
+    var stream = new Blob([lines]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+    return new Response(stream).arrayBuffer().then(function (buf) { return b64u(new Uint8Array(buf)); });
+  }
+  function unpack(code) {
+    var stream = new Blob([unb64u(code)]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new Response(stream).text().then(function (txt) {
+      var lines = txt.split('\n'), v = lines.shift();
+      if (!/^[A-Za-z0-9_-]{11}$/.test(v)) throw new Error('bad');
+      return { videoId: v, rows: lines.map(function (l) {
+        var a = l.split('|'); return { start: +a[0] / 10, end: +a[1] / 10, blanks: a[2] ? a[2].split(',').map(Number) : [], text: a.slice(3).join('|') };
+      }).filter(function (r) { return r.text && r.end > r.start; }) };
+    });
+  }
+  var sendUrl = '';
+  function openSend(v) {
+    if (!window.CompressionStream) { toast('このブラウザでは使えません'); return; }
+    pack(v).then(function (code) {
+      sendUrl = location.origin + location.pathname + '#d=' + code;
+      var box = $('qrBox'); box.innerHTML = '';
+      try {
+        var qr = qrcode(0, 'L'); qr.addData(sendUrl); qr.make();
+        box.innerHTML = qr.createImgTag(4, 16, 'QRコード');
+        $('sendLead').textContent = 'スマホのカメラで読み取ってください';
+      } catch (e) { $('sendLead').textContent = '問題が多いのでQRコードにできません。リンクをコピーして送ってください'; }
+      $('lList').hidden = true; $('sendBox').hidden = false;
+    }, function () { toast('リンクを作れませんでした'); });
+  }
+  function closeSend() { $('sendBox').hidden = true; $('lList').hidden = false; }
+  $('sendClose').addEventListener('click', closeSend);
+  $('sendCopy').addEventListener('click', function () {
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(sendUrl).then(function () { toast('コピーしました'); }, function () { toast('コピーできませんでした'); });
+  });
+  function importFromHash() {
+    var m = location.hash.match(/^#d=([A-Za-z0-9_-]+)/);
+    if (!m) return false;
+    history.replaceState(null, '', location.pathname);
+    if (!window.DecompressionStream) { toast('このブラウザでは読み込めません'); return false; }
+    unpack(m[1]).then(function (d) {
+      var now = Date.now();
+      items = items.filter(function (it) { return it.videoId !== d.videoId; });
+      d.rows.forEach(function (r) { items.push({ id: uid(), videoId: d.videoId, start: r.start, end: r.end, text: r.text, blanks: r.blanks.length ? r.blanks : autoBlanks(r.text), created: now }); });
+      save(); setDeck(d.videoId); posMap[d.videoId] = 0; savePos();
+      toast(d.rows.length + '問を追加しました'); show('practice');
+    }, function () { toast('リンクが壊れているようです'); show(items.length ? 'practice' : 'create'); });
+    return true;
+  }
+  window.addEventListener('hashchange', importFromHash);
+  var origShow = show;
+  show = function (v) { if (v === 'list') closeSend(); origShow(v); };
+  if (!importFromHash()) show(items.length ? 'practice' : 'create');
 })();
 </script>
 </body>
