@@ -235,7 +235,7 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
     </div>
   </section>
 </div>
-<p class="ver">v12</p>
+<p class="ver">v13</p>
 <div class="scrim" id="scrim" hidden></div>
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="shTerm" hidden>
   <div class="sheet-in">
@@ -249,14 +249,14 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
 </div>
 <div class="toast" id="toast" role="status"></div>
 
-<script src="qrcode.js?v=12"></script>
-<script src="words.js?v=12"></script>
-<script src="idioms.js?v=12"></script>
+<script src="qrcode.js?v=13"></script>
+<script src="words.js?v=13"></script>
+<script src="idioms.js?v=13"></script>
 <script>
 (function () {
   'use strict';
   // reload once when a newer version is published, so a cached page never lingers
-  var APP_V = 12;
+  var APP_V = 13;
   try {
     fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
       var asked = +(new URLSearchParams(location.search).get('v') || 0);
@@ -420,7 +420,10 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
       videoId: id, playerVars: pv,
       events: {
         onReady: function () { ready = true; player.setPlaybackRate(rate); var f = pending; pending = null; f && f(); },
-        onStateChange: function (e) { if (e.data === YT.PlayerState.CUED && pending) { var f = pending; pending = null; f(); } },
+        onStateChange: function (e) {
+          if (e.data === YT.PlayerState.CUED && pending) { var f = pending; pending = null; f(); }
+          setPlayIcon(e.data === 1 || e.data === 3);
+        },
         onError: function (e) {
           perr({ 100: 'この動画は見つかりません', 101: 'この動画は埋め込みが許可されていません', 150: 'この動画は埋め込みが許可されていません', 153: 'ファイルを直接開くと再生できません。URLから開いてください' }[e.data] || '再生できませんでした');
         }
@@ -431,13 +434,32 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
   function playClip(c) {
     if (!c) return;
     ensureVideo(c.videoId, c.start, function () {
-      clip = c; stop();
+      clip = c; clipDone = false; stop();
       player.setPlaybackRate(rate); player.seekTo(Math.max(0, c.start - 0.4), true); player.playVideo();
-      timer = setInterval(function () {
-        var t = player.getCurrentTime ? player.getCurrentTime() : 0;
-        if (t >= clip.end + 0.5 || t < clip.start - 3) { player.pauseVideo(); stop(); }
-      }, 40);
+      watch();
     });
+  }
+  var clipDone = true;
+  function watch() {
+    stop();
+    timer = setInterval(function () {
+      var t = player.getCurrentTime ? player.getCurrentTime() : 0;
+      if (t >= clip.end + 0.5 || t < clip.start - 3) { clipDone = true; player.pauseVideo(); stop(); }
+    }, 40);
+  }
+  // play button: play / pause / resume within the current clip
+  var PLAY_ICON = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+  var PAUSE_ICON = '<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>';
+  function setPlayIcon(playing) {
+    var b = $('pPlay'); if (!b) return;
+    b.innerHTML = playing ? PAUSE_ICON : PLAY_ICON;
+    b.setAttribute('aria-label', playing ? '一時停止' : '再生');
+  }
+  function togglePlay(c) {
+    var st = (player && ready && player.getPlayerState) ? player.getPlayerState() : -1;
+    if (st === 1 || st === 3) { player.pauseVideo(); stop(); return; }
+    if (clip && c && clip.id === c.id && !clipDone && st === 2) { player.playVideo(); watch(); return; }
+    playClip(c);
   }
 
   // ---------- decks (one per video) ----------
@@ -600,7 +622,7 @@ textarea { font-size: 15px; min-height: 180px; resize: vertical; }
   }
   $('pCheck').addEventListener('click', check);
   $('pReveal').addEventListener('click', reveal);
-  $('pPlay').addEventListener('click', function () { playClip(cur()); var f = inputs().find(function (i) { return !i.readOnly; }); f && f.focus({ preventScroll: true }); });
+  $('pPlay').addEventListener('click', function () { togglePlay(cur()); var f = inputs().find(function (i) { return !i.readOnly; }); f && f.focus({ preventScroll: true }); });
   $('pPrev').addEventListener('click', function () { go(-1, true); });
   $('pNext').addEventListener('click', function () { go(1, true); });
   var RATES = [1, 0.75, 0.5];
